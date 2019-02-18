@@ -1,0 +1,93 @@
+#!/bin/bash
+# git (single layer) onion
+# @license
+# Copyright (c) 2019 Alexandre REMY
+#
+# https://github.com/8HoLoN/gito
+# @version: 0.0.1 ( February 2019 )
+# @author 8HoLoN / https://github.com/8HoLoN/
+# < 8holon [at] gmail.com >
+
+main() {
+
+action=$1
+sevenzPath="7z"
+password=$2
+archiveName="secure.7z"
+innerRepo="inner"
+
+if [ "$action" == "clone" ];then
+    repoPath=$3
+    parseRepoName
+    gitoClone
+elif [ "$action" == "init" ];then
+    repoPath=$3
+    parseRepoName
+    gitoInit
+elif [ "$action" == "pull" ];then
+    gitoPull
+elif [ "$action" == "push" ];then
+    gitoPull
+    gitoPush
+else
+    echo "Wrong parameters."
+fi
+exit 0
+}
+gitoInit () {
+    git clone --mirror $repoPath
+    cd "$repoName.git"
+    $sevenzPath a "$archiveName" * -p"$password" -mhe=on
+    mv "$archiveName" "../"
+    cd ..
+    rm -rf "$repoName.git"
+    git clone $repoPath
+    mv "$archiveName" "$repoName"
+    cd "$repoName"
+    git add "$archiveName"
+    git commit -a -m "init repo"
+    git push
+    cd ..
+    rm -rf "$repoName"
+}
+gitoClone () {
+    git clone $repoPath --no-hardlinks --no-local
+    mkdir ".gito"
+    mv "$repoName" ".gito"
+    cd ".gito"
+    mv "$repoName" "sub"
+    cd "sub"
+    $sevenzPath -y x "$archiveName" -p"$password" -o"$innerRepo.git"
+    git clone "$innerRepo.git" --no-hardlinks --no-local
+    mv "$innerRepo" "../.."
+    cd "../.."
+    mv ".gito" "$innerRepo"
+    mv "$innerRepo" "$repoName"
+    cd $repoName
+    #rem make it hidden
+    #attrib +h ".gito" /s /d
+    git remote set-url origin .gito/sub/$innerRepo.git
+    cd ..
+}
+gitoPull () {
+    cd ".gito/sub"
+    git pull
+    $sevenzPath -y x "$archiveName" -p"$password" -o"$innerRepo.git"
+    cd "../.."
+    git pull
+}
+gitoPush () {
+    git push
+    cd ".gito/sub/$innerRepo.git"
+    $sevenzPath a "$archiveName" * -p"$password" -mhe=on
+    #move /Y "%archiveName%" "../%archiveName%"
+    mv "$archiveName" "../$archiveName"
+    cd ..
+    git commit -a -m "update repo"
+    git push
+    cd "../.."
+}
+parseRepoName (){
+    repoName=$(echo $repoPath| rev | cut -d'/' -f 1 | rev | cut -d'.' -f 1)
+}
+main "$@";
